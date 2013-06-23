@@ -8,9 +8,12 @@
 # Check interval to detect power changes
 $checkInterval = 1
 # Log interval in seconds when on battery power.
-$batteryLogInterval = 300
+$batteryLogInterval = 60
 # Log interval in seconds when on AC power.
 $acLogInterval = 3600
+
+# Log warning instead of info if battery power below given percentage
+$batteryLogWarn = 5
 
 #-------------------------------
 
@@ -24,16 +27,16 @@ if($condition) {
 }
 
 #signal script execution start    
-Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 65533 -Message 'Starting new Execution of BatteryCharge Monitor Script' -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue
+Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 0 -Message 'Starting new Execution of BatteryCharge Monitor Script' -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue
 
 $prevBatteryStatus = 2
 $prevLogTime = 0
-
 
 do {
 #clear any previous values
     $PowstatMsg = $null
     $ChargeRemMsg = $null
+	$ChargeRem = $null
     $RemTimeMsg = $null
 	
 #create a Message object that we can add values to    
@@ -54,10 +57,13 @@ do {
 #If charge is larger than 100, it means it is full/on ac power
     if ($batt.EstimatedChargeRemaining -lt '100') {
         'EstimatedChargeRemaining: ' + $batt.EstimatedChargeRemaining + '%'
-        $Message.ChargeRemMsg = "{0:P0}" -f ($batt.EstimatedChargeRemaining/100) }
-     else {
+        $Message.ChargeRemMsg = "{0:P0}" -f ($batt.EstimatedChargeRemaining/100) 
+		$ChargeRem = $batt.EstimatedChargeRemaining
+	} else {
         'EstimatedChargeRemaining: 100%'
-        $Message.ChargeRemMsg = "{0:P0}" -f 1 }
+        $Message.ChargeRemMsg = "{0:P0}" -f 1
+		$ChargeRem = 100
+	}
 
 #If estimated minutes is an absurdly high value, it means we are on AC power
     if ($batt.EstimatedRUntime -lt '9999') {
@@ -72,7 +78,7 @@ do {
 		} else {
 			$EventMsg = "Switched back to AC Power! $($Message.ChargeRemMsg), Minutes: $($Message.RemTimeMsg)"
 		}
-		Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 65534 -Message $EventMsg -EntryType Warning -ComputerName $env:computername -ErrorAction:SilentlyContinue
+		Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 10 -Message $EventMsg -EntryType Warning -ComputerName $env:computername -ErrorAction:SilentlyContinue
 		$prevLogTime = New-TimeSpan "01 January 1970 00:00:00" $(Get-Date)
 	}
 	$prevBatteryStatus = $batt.BatteryStatus
@@ -84,14 +90,23 @@ do {
 		#AC Power
 		if ($diff -ge $acLogInterval) {
 		   $EventMsg = "$($Message.PowStatMsg), $($Message.ChargeRemMsg), $($Message.RemTimeMsg)"
-			Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 65534 -Message $EventMsg -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue
+			Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 100 -Message $EventMsg -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue
 			$prevLogTime = New-TimeSpan "01 January 1970 00:00:00" $(Get-Date)
 		}
 	} elseif ($prevBatteryStatus -like '1') {
 		# Battery power
 		if ($diff -ge $batteryLogInterval) {
+			$EventMsg = "$($Message.PowStatMsg), $($Message.ChargeRemMsg), $($Message.RemTimeMsg)"
+			if ($ChargeRem -le $batteryLogWarn) {
+				Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 200 -Message $EventMsg -EntryType Warning -ComputerName $env:computername -ErrorAction:SilentlyContinue
+			} else {
+				Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 200 -Message $EventMsg -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue			
+			}
+			$prevLogTime = New-TimeSpan "01 January 1970 00:00:00" $(Get-Date)
+		}
+		if ($diff -ge $batteryLogInterval) {
 		   $EventMsg = "$($Message.PowStatMsg), $($Message.ChargeRemMsg), $($Message.RemTimeMsg)"
-			Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 65534 -Message $EventMsg -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue
+			Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 200 -Message $EventMsg -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue
 			$prevLogTime = New-TimeSpan "01 January 1970 00:00:00" $(Get-Date)
 		}
 	}

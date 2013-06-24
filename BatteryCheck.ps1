@@ -13,7 +13,7 @@ $batteryLogInterval = 60
 $acLogInterval = 3600
 
 # Log warning instead of info if battery power below given percentage
-$batteryLogWarn = 5
+$batteryLogWarn = 15
 
 #-------------------------------
 
@@ -102,11 +102,6 @@ do {
 			} else {
 				Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 200 -Message $EventMsg -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue			
 			}
-			$prevLogTime = New-TimeSpan "01 January 1970 00:00:00" $(Get-Date)
-		}
-		if ($diff -ge $batteryLogInterval) {
-		   $EventMsg = "$($Message.PowStatMsg), $($Message.ChargeRemMsg), $($Message.RemTimeMsg)"
-			Write-EventLog -LogName BatteryMonitor -Source BattMon -EventID 200 -Message $EventMsg -EntryType Information -ComputerName $env:computername -ErrorAction:SilentlyContinue
 			$prevLogTime = New-TimeSpan "01 January 1970 00:00:00" $(Get-Date)
 		}
 	}
